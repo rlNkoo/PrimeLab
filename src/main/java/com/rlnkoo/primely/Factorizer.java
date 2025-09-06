@@ -22,14 +22,12 @@ public final class Factorizer {
         if (n.signum() < 0) { map.put(BigInteger.valueOf(-1),1); n = n.negate(); }
         if (n.signum() == 0) { map.put(BigInteger.ZERO,1); return new Factorization(map, true, "zero"); }
 
-        // Trial division by small primes
         for (int p : smallPrimesUpTo(10_000)) {
             BigInteger P = BigInteger.valueOf(p);
             while (n.mod(P).equals(BigInteger.ZERO)) { merge(map, P); n = n.divide(P); }
         }
         if (n.equals(BigInteger.ONE)) return new Factorization(map, true, "trial");
 
-        // Recursive splitting of the remaining cofactor(s)
         Deque<BigInteger> st = new ArrayDeque<>();
         st.push(n);
         while (!st.isEmpty()) {
@@ -41,7 +39,6 @@ public final class Factorizer {
             if (d.equals(BigInteger.ONE) || d.equals(m)) d = ecmPhase1(m, 50_000);
 
             if (d.equals(BigInteger.ONE) || d.equals(m)) {
-                // give up on this branch; treat as “probably prime” for the MVP
                 merge(map, m);
             } else {
                 st.push(d);

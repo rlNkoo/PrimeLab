@@ -21,7 +21,7 @@ class FactorizerTest {
     }
 
     @Test void factorPrimeReturnsPrimeItself() {
-        var p = new BigInteger("1000003"); // prime
+        var p = new BigInteger("1000003");
         var f = Factorizer.factor(p);
         assertTrue(f.complete());
         assertEquals(1, f.factors().get(p));

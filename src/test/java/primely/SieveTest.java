@@ -8,7 +8,7 @@ class SieveTest {
 
     @Test void countPrimesBelow1000Parallel() {
         long cnt = Sieve.primesBetween(1, 1_000, 1 << 16, true, 4).count();
-        assertEquals(168, cnt); // known π(1000)=168
+        assertEquals(168, cnt);
     }
 
     @Test void smallRangeSequential() {

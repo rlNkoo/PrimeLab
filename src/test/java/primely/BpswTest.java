@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class BpswTest {
 
     @Test void mersenne127() {
-        BigInteger p = new BigInteger("170141183460469231731687303715884105727"); // 2^127-1
+        BigInteger p = new BigInteger("170141183460469231731687303715884105727");
         assertTrue(Primes.isPrimeBPSW(p));
     }
 

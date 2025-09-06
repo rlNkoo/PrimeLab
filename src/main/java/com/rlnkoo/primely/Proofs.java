@@ -20,7 +20,7 @@ public final class Proofs {
         }
     }
 
-    /** Pocklington certificate with a large factor q | (n-1) and a suitable base a. */
+    /** Pocklington certificate with an informative factor and a suitable base a. */
     public record PocklingtonCert(BigInteger n, BigInteger q, BigInteger a) implements PrimeCertificate {
         @Override public String pretty() {
             return "Pocklington: n=" + n + ", q=" + q + ", a=" + a;
@@ -55,30 +55,43 @@ public final class Proofs {
     }
 
     /**
-     * Pocklington (simple form): if there's a known factor q | (n-1) such that q > sqrt(n)-1 and
-     * a suitable base a passes the conditions, n is prime.
+     * Pocklington: If n-1 = F * R with gcd(F, R) = 1, F > sqrt(n),
+     * and there exists a base a such that:
+     *   a^(n-1) ≡ 1 (mod n)
+     *   a^((n-1)/q) ≠ 1 (mod n) for every prime q | F
+     * then n is prime.
+     *
+     * We build F as the product of all known prime powers in the factorization of (n-1).
      */
     public static Optional<PocklingtonCert> provePocklington(BigInteger n) {
         if (n.compareTo(TWO) <= 0) return Optional.empty();
+
         BigInteger nm1 = n.subtract(BigInteger.ONE);
         var fac = Factorizer.factor(nm1);
+        var factors = fac.factors();
 
-        BigInteger bigQ = BigInteger.ONE;
-        for (var e : fac.factors().entrySet()) {
+        BigInteger F = BigInteger.ONE;
+        BigInteger largestQ = BigInteger.ONE;
+        for (var e : factors.entrySet()) {
             BigInteger q = e.getKey();
-            if (q.compareTo(bigQ) > 0) bigQ = q;
+            int exp = e.getValue();
+            BigInteger qPow = q.pow(exp);
+            F = F.multiply(qPow);
+            if (q.compareTo(largestQ) > 0) largestQ = q;
         }
-        if (bigQ.multiply(bigQ).compareTo(n.subtract(BigInteger.ONE)) <= 0) return Optional.empty();
+
+        if (F.multiply(F).compareTo(n) <= 0) {
+            return Optional.empty();
+        }
 
         for (BigInteger a = TWO; a.compareTo(nm1) < 0; a = a.add(BigInteger.ONE)) {
             if (!a.modPow(nm1, n).equals(BigInteger.ONE)) continue;
-            boolean good = true;
-            for (var e : fac.factors().entrySet()) {
+            boolean ok = true;
+            for (var e : factors.entrySet()) {
                 BigInteger q = e.getKey();
-                BigInteger t = a.modPow(nm1.divide(q), n);
-                if (t.equals(BigInteger.ONE)) { good = false; break; }
+                if (a.modPow(nm1.divide(q), n).equals(BigInteger.ONE)) { ok = false; break; }
             }
-            if (good) return Optional.of(new PocklingtonCert(n, bigQ, a));
+            if (ok) return Optional.of(new PocklingtonCert(n, largestQ, a));
         }
         return Optional.empty();
     }

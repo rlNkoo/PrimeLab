@@ -7,12 +7,13 @@ import java.util.Optional;
 
 /** High-level prime utilities: tests (MR64, BPSW), next/random/safe primes, and proof APIs. */
 public final class Primes {
+
     private Primes() {}
 
     private static final long[] BASES64 = {2, 3, 5, 7, 11, 13, 17};
     private static final SecureRandom RNG = new SecureRandom();
 
-    // ===== Deterministic Miller–Rabin for 64-bit =====
+    // Deterministic Miller–Rabin for 64-bit
     public static boolean isPrimeDet64(long n) {
         if (n < 2) return false;
         for (long p : new long[]{2,3,5,7,11,13,17,19,23,29,31}) {
@@ -46,7 +47,6 @@ public final class Primes {
         if (n.signum() <= 0) return false;
         if (n.compareTo(BigInteger.TWO) < 0) return false;
 
-        // Small prime trial and quick square elimination
         for (int p : Factorizer.smallPrimesUpTo(1000)) {
             if (n.equals(BigInteger.valueOf(p))) return true;
             if (n.mod(BigInteger.valueOf(p)).equals(BigInteger.ZERO)) return false;
@@ -70,75 +70,97 @@ public final class Primes {
         return false;
     }
 
+    /** Strong Lucas probable prime test with Selfridge parameters (used in BPSW). */
     static boolean strongLucasSelfridge(BigInteger n) {
         long D = 5; int sign = 1;
         while (true) {
             BigInteger bigD = BigInteger.valueOf(sign * D);
             int j = jacobi(bigD, n);
             if (j == -1) break;
-            D += 2; sign = -sign; // iterate 5, -7, 9, -11, ...
+            D += 2; sign = -sign;
         }
         long dSigned = sign * D;
+
         BigInteger P = BigInteger.ONE;
         BigInteger Q = BigInteger.valueOf((1 - dSigned) / 4);
+        BigInteger Dbi = P.multiply(P).subtract(Q.shiftLeft(2));
 
-        BigInteger n1 = n.add(BigInteger.ONE);
-        int s = n1.getLowestSetBit();
-        BigInteger d = n1.shiftRight(s);
+        BigInteger nPlus1 = n.add(BigInteger.ONE);
+        int s = nPlus1.getLowestSetBit();
+        BigInteger d = nPlus1.shiftRight(s);
 
-        BigInteger[] UV = lucasUV(n, P, Q, d);
+        BigInteger[] UV = lucasUV_binary(n, P, Q, Dbi, d);
         BigInteger U = UV[0], V = UV[1];
-        if (U.equals(BigInteger.ZERO) || V.equals(BigInteger.ZERO)) return true;
+
+        if (U.signum() == 0 || V.signum() == 0) return true;
 
         BigInteger Qk = Q.mod(n);
         for (int r = 1; r < s; r++) {
             V = V.multiply(V).subtract(Qk.shiftLeft(1)).mod(n);
+            if (V.signum() == 0) return true;
             Qk = Qk.multiply(Qk).mod(n);
-            if (V.equals(BigInteger.ZERO)) return true;
         }
         return false;
     }
 
-    static BigInteger[] lucasUV(BigInteger n, BigInteger P, BigInteger Q, BigInteger k) {
-        BigInteger U = BigInteger.ZERO;      // U_0
-        BigInteger V = BigInteger.TWO;       // V_0
-        BigInteger Qk = BigInteger.ONE;      // Q^0
+    /**
+     * Compute (U_k, V_k) modulo n for Lucas sequences with parameters (P, Q) using
+     * the standard binary method that includes division by 2 modulo n.
+     */
+    static BigInteger[] lucasUV_binary(BigInteger n, BigInteger P, BigInteger Q, BigInteger D, BigInteger k) {
+        BigInteger U = BigInteger.ZERO;
+        BigInteger V = BigInteger.TWO;
+        BigInteger Qk = BigInteger.ONE;
+        BigInteger inv2 = n.add(BigInteger.ONE).shiftRight(1);
 
         for (int i = k.bitLength() - 1; i >= 0; i--) {
-            // double-step
             BigInteger U2 = U.multiply(V).mod(n);
             BigInteger V2 = V.multiply(V).subtract(Qk.shiftLeft(1)).mod(n);
             U = U2; V = V2; Qk = Qk.multiply(Qk).mod(n);
 
             if (k.testBit(i)) {
-                // add-step
-                BigInteger U1 = U.add(V).mod(n);
-                BigInteger V1 = V.add(U.multiply(P)).mod(n);
-                U = U1; V = V1; Qk = Qk.multiply(Q).mod(n);
+                BigInteger U1 = P.multiply(U).add(V).mod(n);
+                U1 = U1.multiply(inv2).mod(n);
+
+                BigInteger V1 = D.multiply(U).add(P.multiply(V)).mod(n);
+                V1 = V1.multiply(inv2).mod(n);
+
+                U = U1; V = V1;
+                Qk = Qk.multiply(Q).mod(n);
             }
         }
         return new BigInteger[]{U, V};
     }
 
-    /** Jacobi symbol (a/n) with n odd positive. */
+    /** Jacobi symbol (a/n) with n odd and positive. Robust for big n (no int overflow). */
     static int jacobi(BigInteger a, BigInteger n) {
-        if (n.signum() <= 0 || !n.testBit(0)) throw new IllegalArgumentException("n must be odd positive");
+        if (n.signum() <= 0 || !n.testBit(0)) {
+            throw new IllegalArgumentException("n must be odd positive");
+        }
         a = a.mod(n);
-        int r = 1;
+        int result = 1;
+
         while (a.signum() != 0) {
             int t = a.getLowestSetBit();
             if (t > 0) {
                 a = a.shiftRight(t);
-                int n8 = n.intValue() & 7;
-                if ((t & 1) == 1 && (n8 == 3 || n8 == 5)) r = -r;
+                int nMod8 = n.and(BigInteger.valueOf(7)).intValue();
+                if ((t & 1) == 1 && (nMod8 == 3 || nMod8 == 5)) {
+                    result = -result;
+                }
             }
-            if (a.compareTo(n) < 0) {
-                BigInteger tmp = a; a = n; n = tmp;
-                if (((a.intValue() & 3) == 3) && ((n.intValue() & 3) == 3)) r = -r;
+
+            BigInteger tmp = a; a = n; n = tmp;
+
+            int aMod4 = a.and(BigInteger.valueOf(3)).intValue();
+            int nMod4 = n.and(BigInteger.valueOf(3)).intValue();
+            if (aMod4 == 3 && nMod4 == 3) {
+                result = -result;
             }
-            a = a.subtract(n).mod(n);
+
+            a = a.mod(n);
         }
-        return n.equals(BigInteger.ONE) ? r : 0;
+        return n.equals(BigInteger.ONE) ? result : 0;
     }
 
     static boolean isSquare(BigInteger n) {
@@ -184,10 +206,10 @@ public final class Primes {
         }
     }
 
+    // Proofs API
     public static Optional<Proofs.PrimeCertificate> provePratt(BigInteger n) {
         return Proofs.provePratt(n).map(pc -> pc);
     }
-
     public static Optional<Proofs.PrimeCertificate> provePocklington(BigInteger n) {
         return Proofs.provePocklington(n).map(pc -> pc);
     }

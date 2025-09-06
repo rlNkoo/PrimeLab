@@ -41,12 +41,11 @@ public final class Sieve {
         LongStream idx = LongStream.range(0, segCount);
         if (parallel) {
             ForkJoinPool fjp = new ForkJoinPool(parallelism);
-            // Create the stream inside the pool; ensure we shut it down when closing the stream.
+
             return fjp.submit(() ->
                     idx.parallel()
                             .flatMap(i -> sieveSegment(base, f + i * seg, Math.min(t, f + (i + 1L) * seg)))
-                            .onClose(fjp::shutdown)
-            ).join();
+                            .onClose(fjp::shutdown)).join();
         } else {
             return idx.flatMap(i -> sieveSegment(base, f + i * seg, Math.min(t, f + (i + 1L) * seg)));
         }
@@ -56,17 +55,15 @@ public final class Sieve {
         int len = (int) (end - start);
         BitSet composite = new BitSet(len);
 
-        // wheel-30 pre-cross: kill multiples of 2,3,5 quickly
         for (long p : SM_PRIMES) {
             if (p >= end) break;
             long m = Math.max(p * p, ((start + p - 1) / p) * p);
             for (long j = m; j < end; j += p) composite.set((int) (j - start));
         }
 
-        // cross with base primes up to sqrt(end)
         for (int p : base) {
             long pp = (long) p * p;
-            if (pp >= end) break; // smaller ones already handled
+            if (pp >= end) break;
             long m = Math.max(pp, ((start + p - 1L) / p) * p);
             for (long j = m; j < end; j += p) composite.set((int) (j - start));
         }
