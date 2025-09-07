@@ -63,7 +63,7 @@ Helper functions for modular arithmetic:
 ## How to Use
 
 1. Add the project to your Java environment (for example via Maven build).  
-2. Import the classes you need, e.g. `io.primely.Primes`, `io.primely.Sieve`, etc.  
+2. Import the classes you need, e.g. `com.rlnkoo.primely.Primes`, `com.rlnkoo.primely.Sieve`, etc.  
 3. Call the static methods for prime testing, generation, factorization, or sieve-based enumeration.  
 4. For advanced checks, use `Primes.provePratt` or `Primes.provePocklington` to obtain certificates.  
 5. For number theory utilities like modular exponentiation or CRT, use `ModMath`.
