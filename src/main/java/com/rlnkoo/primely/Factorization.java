@@ -12,4 +12,8 @@ public record Factorization(Map<BigInteger,Integer> factors, boolean complete, S
                 .map(e -> e.getKey().pow(e.getValue()))
                 .reduce(BigInteger.ONE, BigInteger::multiply);
     }
+
+    public void() {
+        System.out.println("Nowa linia");
+    }
 }
